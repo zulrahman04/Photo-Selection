@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Photo Selection</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3b82f6;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100 font-sans text-gray-800">
+
+    <!-- UBAH KONFIGURASI DI BAWAH INI -->
+    <script>
+        const CONFIG = {
+            APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbwIFVOSbcYkWrNUVM_K6tX165nm3bZe41uDQZ7l5g6-pMit6KyPMo72cueNLh5Ij7E5lQ/exec',
+            ADMIN_PIN: '030400' // Ganti PIN admin di sini
+        };
+    </script>
+
+    <!-- Overlay Login -->
+    <div id="loginOverlay" class="fixed inset-0 bg-gray-900 bg-opacity-95 z-50 flex items-center justify-center">
+        <div class="bg-white p-8 rounded-xl shadow-2xl max-w-sm w-full mx-4">
+            <h2 class="text-2xl font-bold text-center mb-6 text-gray-800">Admin Login</h2>
+            <div class="mb-4">
+                <label class="block text-gray-700 text-sm font-bold mb-2" for="pin">Masukkan PIN</label>
+                <input type="password" id="pin"
+                    class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="***" onkeypress="if(event.key === 'Enter') checkPin()">
+            </div>
+            <p id="loginError" class="text-red-500 text-sm italic mb-4 hidden">PIN Salah!</p>
+            <button onclick="checkPin()"
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline transition">Masuk</button>
+        </div>
+    </div>
+
+    <!-- Main Dashboard (Awalnya tersembunyi) -->
+    <div id="dashboardApp" class="hidden min-h-screen flex flex-col">
+
+        <!-- Navbar -->
+        <header class="bg-white shadow">
+            <div class="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8 flex justify-between items-center">
+                <h1 class="text-2xl font-bold text-gray-900">Dashboard Editor</h1>
+                <div class="flex items-center gap-3">
+                    <button onclick="openCrudModal()"
+                        class="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md transition">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4">
+                            </path>
+                        </svg>
+                        Tambah Data
+                    </button>
+                    <button onclick="fetchData()"
+                        class="flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-md transition">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+                            </path>
+                        </svg>
+                        Refresh Data
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Tabs -->
+        <div class="bg-white border-b border-gray-200 shadow-sm relative z-10">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <nav class="-mb-px flex space-x-8" aria-label="Tabs">
+                    <button onclick="switchTab('selections')" id="tabSelections"
+                        class="border-blue-500 text-blue-600 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition">
+                        Hasil Pilihan
+                    </button>
+                    <button onclick="switchTab('projects')" id="tabProjects"
+                        class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition">
+                        Master Projects
+                    </button>
+                </nav>
+            </div>
+        </div>
+
+        <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+
+            <!-- TAB: SELECTIONS -->
+            <div id="viewSelections"> <!-- Metrics Cards -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                    <div class="bg-white rounded-lg shadow p-4 border-l-4 border-blue-500">
+                        <p class="text-sm text-gray-500 font-medium">Total Dipilih</p>
+                        <p id="metricTotal" class="text-2xl font-bold text-gray-800">0</p>
+                    </div>
+                    <div class="bg-white rounded-lg shadow p-4 border-l-4 border-yellow-500">
+                        <p class="text-sm text-gray-500 font-medium">Pending</p>
+                        <p id="metricPending" class="text-2xl font-bold text-gray-800">0</p>
+                    </div>
+                    <div class="bg-white rounded-lg shadow p-4 border-l-4 border-purple-500">
+                        <p class="text-sm text-gray-500 font-medium">In Progress</p>
+                        <p id="metricProgress" class="text-2xl font-bold text-gray-800">0</p>
+                    </div>
+                    <div class="bg-white rounded-lg shadow p-4 border-l-4 border-green-500">
+                        <p class="text-sm text-gray-500 font-medium">Done</p>
+                        <p id="metricDone" class="text-2xl font-bold text-gray-800">0</p>
+                    </div>
+                </div>
+
+                <!-- Filters & Search -->
+                <div
+                    class="bg-white p-4 rounded-lg shadow mb-6 flex flex-col sm:flex-row gap-4 items-center justify-between">
+                    <div class="flex gap-2 w-full sm:w-auto">
+                        <select id="filterStatus" onchange="renderTable()"
+                            class="border border-gray-300 rounded-md px-3 py-2 w-full sm:w-40 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="All">Semua Status</option>
+                            <option value="Pending">Pending</option>
+                            <option value="In Progress">In Progress</option>
+                            <option value="Done">Done</option>
+                        </select>
+                    </div>
+                    <div class="w-full sm:w-1/3">
+                        <input type="text" id="searchInput" onkeyup="renderTable()"
+                            placeholder="Cari Project ID atau Nama File..."
+                            class="w-full border border-gray-300 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                </div>
+
+                <!-- Pesan Error / Loading Umum -->
+                <div id="dashboardMessage" class="hidden mb-4 p-4 rounded-md text-center"></div>
+
+                <!-- Data Table -->
+                <div class="bg-white rounded-lg shadow overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th scope="col"
+                                        class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Foto</th>
+                                    <th scope="col"
+                                        class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Project / Klien</th>
+                                    <th scope="col"
+                                        class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Catatan</th>
+                                    <th scope="col"
+                                        class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Status</th>
+                                    <th scope="col"
+                                        class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tableBody" class="bg-white divide-y divide-gray-200">
+                                <!-- Baris tabel di-render via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Loading State untuk Tabel -->
+                    <div id="tableLoader" class="flex flex-col items-center justify-center py-12 hidden">
+                        <div class="loader mb-2"></div>
+                        <p class="text-sm text-gray-500">Memuat data dari Google Sheets...</p>
+                    </div>
+
+                    <!-- Empty State -->
+                    <div id="emptyState" class="flex flex-col items-center justify-center py-12 hidden">
+                        <svg class="w-12 h-12 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4">
+                            </path>
+                        </svg>
+                        <p class="text-gray-500">Tidak ada data ditemukan.</p>
+                    </div>
+                </div>
+
+            </div>
+            <!-- END TAB: SELECTIONS -->
+
+            <!-- TAB: PROJECTS -->
+            <div id="viewProjects" class="hidden">
+                <!-- Header Master Project -->
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-xl font-semibold text-gray-800">Daftar Master Project</h2>
+                    <button onclick="openProjectModal()"
+                        class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md transition flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4">
+                            </path>
+                        </svg>
+                        Buat Project Baru
+                    </button>
+                </div>
+
+                <!-- Data Table Projects -->
+                <div class="bg-white rounded-lg shadow overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th scope="col"
+                                        class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Project ID</th>
+                                    <th scope="col"
+                                        class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Nama Klien</th>
+                                    <th scope="col"
+                                        class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Folder ID Drive</th>
+                                    <th scope="col"
+                                        class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tableProjectsBody" class="bg-white divide-y divide-gray-200">
+                                <!-- Data di-render via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Loading State -->
+                    <div id="tableProjectsLoader" class="flex flex-col items-center justify-center py-12 hidden">
+                        <div class="loader mb-2"></div>
+                        <p class="text-sm text-gray-500">Memuat data dari Google Sheets...</p>
+                    </div>
+
+                    <!-- Empty State -->
+                    <div id="emptyProjectsState" class="flex flex-col items-center justify-center py-12 hidden">
+                        <p class="text-gray-500">Belum ada project. Silakan buat project baru.</p>
+                    </div>
+                </div>
+            </div>
+            <!-- END TAB: PROJECTS -->
+
+            <!-- CRUD Modal for Selections -->
+            <div id="crudModal"
+                class="fixed inset-0 bg-gray-900 bg-opacity-75 z-50 flex items-center justify-center hidden">
+                <div class="bg-white p-6 rounded-xl shadow-xl max-w-md w-full mx-4">
+                    <h3 id="crudModalTitle" class="text-xl font-bold text-gray-900 mb-4">Tambah Data</h3>
+                    <input type="hidden" id="crudRowId">
+
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Project ID / Klien</label>
+                            <input type="text" id="crudProjectId"
+                                class="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
+                                required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Nama File</label>
+                            <input type="text" id="crudFileName"
+                                class="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
+                                required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">File ID (Google Drive)</label>
+                            <input type="text" id="crudFileId"
+                                class="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
+                                required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Catatan Edit</label>
+                            <textarea id="crudNote" rows="2"
+                                class="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500"></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                            <select id="crudStatus"
+                                class="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-blue-500 focus:border-blue-500">
+                                <option value="Pending">Pending</option>
+                                <option value="In Progress">In Progress</option>
+                                <option value="Done">Done</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mt-6 flex justify-end gap-3">
+                        <button onclick="closeCrudModal()"
+                            class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition">Batal</button>
+                        <button id="crudSubmitBtn" onclick="submitCrudForm()"
+                            class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition flex items-center gap-2">
+                            <span>Simpan</span>
+                            <div id="crudLoader" class="loader hidden"
+                                style="width: 16px; height: 16px; border-width: 2px;"></div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Master Project -->
+            <div id="projectModal"
+                class="fixed inset-0 bg-gray-900 bg-opacity-75 z-50 flex items-center justify-center hidden">
+                <div class="bg-white p-6 rounded-xl shadow-xl max-w-md w-full mx-4">
+                    <h3 class="text-xl font-bold text-gray-900 mb-4">Buat Master Project</h3>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Project ID (Unik, misal:
+                                PRJ-001)</label>
+                            <input type="text" id="projId"
+                                class="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-green-500 focus:border-green-500"
+                                required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Nama Klien / Deskripsi</label>
+                            <input type="text" id="projClient"
+                                class="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-green-500 focus:border-green-500"
+                                required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Folder ID Google Drive</label>
+                            <input type="text" id="projFolderId"
+                                class="w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-green-500 focus:border-green-500"
+                                required>
+                        </div>
+                    </div>
+
+                    <div class="mt-6 flex justify-end gap-3">
+                        <button onclick="closeProjectModal()"
+                            class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition">Batal</button>
+                        <button id="projSubmitBtn" onclick="submitProjectForm()"
+                            class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition flex items-center gap-2">
+                            <span>Simpan</span>
+                            <div id="projLoader" class="loader hidden"
+                                style="width: 16px; height: 16px; border-width: 2px; border-top-color: white;"></div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <script>
+        let allData = [];
+        let allProjects = [];
+        let currentTab = 'selections';
+
+        // Fungsi Login Sederhana
+        function checkPin() {
+            const pinInput = document.getElementById('pin').value;
+            if (pinInput === CONFIG.ADMIN_PIN) {
+                document.getElementById('loginOverlay').classList.add('hidden');
+                document.getElementById('dashboardApp').classList.remove('hidden');
+                fetchData();
+                fetchProjects();
+            } else {
+                document.getElementById('loginError').classList.remove('hidden');
+            }
+        }
+
+        // Fungsi Navigasi Tab
+        function switchTab(tabName) {
+            currentTab = tabName;
+
+            // Tab Buttons
+            const btnSel = document.getElementById('tabSelections');
+            const btnProj = document.getElementById('tabProjects');
+
+            // Views
+            const viewSel = document.getElementById('viewSelections');
+            const viewProj = document.getElementById('viewProjects');
+
+            if (tabName === 'selections') {
+                btnSel.className = "border-blue-500 text-blue-600 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition";
+                btnProj.className = "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition";
+                viewSel.classList.remove('hidden');
+                viewProj.classList.add('hidden');
+            } else {
+                btnProj.className = "border-blue-500 text-blue-600 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition";
+                btnSel.className = "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition";
+                viewProj.classList.remove('hidden');
+                viewSel.classList.add('hidden');
+            }
+        }
+
+        // Ambil Data dari Google Apps Script
+        async function fetchData() {
+            if (CONFIG.APPS_SCRIPT_URL.includes('ISI_DENGAN')) {
+                showMsg('URL Apps Script belum dikonfigurasi pada source code!', 'error');
+                return;
+            }
+
+            const tbody = document.getElementById('tableBody');
+            const loader = document.getElementById('tableLoader');
+            const empty = document.getElementById('emptyState');
+
+            tbody.innerHTML = '';
+            empty.classList.add('hidden');
+            loader.classList.remove('hidden');
+            showMsg('', 'hide');
+
+            try {
+                // Gunakan URL GET parameter action=getSelections
+                const response = await fetch(`${CONFIG.APPS_SCRIPT_URL}?action=getSelections`);
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    allData = result.data.sort((a, b) => new Date(b.Timestamp) - new Date(a.Timestamp)); // Urutkan terbaru di atas
+                    updateMetrics();
+                    renderTable();
+                } else {
+                    throw new Error(result.message || 'Error fetching data');
+                }
+            } catch (error) {
+                console.error(error);
+                showMsg('Gagal memuat data: ' + error.message, 'error');
+                loader.classList.add('hidden');
+            }
+        }
+
+        // Render data ke tabel
+        function renderTable() {
+            const tbody = document.getElementById('tableBody');
+            const loader = document.getElementById('tableLoader');
+            const empty = document.getElementById('emptyState');
+
+            const filterStatus = document.getElementById('filterStatus').value;
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+
+            // Filter data
+            const filteredData = allData.filter(item => {
+                const matchStatus = filterStatus === 'All' || item.Status_Edit === filterStatus;
+                const matchSearch = item.File_Name.toLowerCase().includes(searchTerm) ||
+                    item.Project_ID.toLowerCase().includes(searchTerm) ||
+                    (item.Catatan_Edit && item.Catatan_Edit.toLowerCase().includes(searchTerm));
+                return matchStatus && matchSearch;
+            });
+
+            loader.classList.add('hidden');
+
+            if (filteredData.length === 0) {
+                tbody.innerHTML = '';
+                empty.classList.remove('hidden');
+                return;
+            }
+
+            empty.classList.add('hidden');
+
+            tbody.innerHTML = filteredData.map(item => {
+                const dateObj = new Date(item.Timestamp);
+                const dateStr = dateObj.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+                const timeStr = dateObj.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+
+                // Badge color based on status
+                let statusClass = 'bg-yellow-100 text-yellow-800';
+                if (item.Status_Edit === 'In Progress') statusClass = 'bg-purple-100 text-purple-800';
+                if (item.Status_Edit === 'Done') statusClass = 'bg-green-100 text-green-800';
+
+                return `
+                <tr class="hover:bg-gray-50 transition">
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="flex items-center">
+                            <div class="flex-shrink-0 h-12 w-12 bg-gray-200 rounded overflow-hidden">
+                                <img class="h-12 w-12 object-cover" src="https://drive.google.com/uc?id=${item.Drive_File_ID}" alt="" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\\'http://www.w3.org/2000/svg\\' fill=\\'none\\' viewBox=\\'0 0 24 24\\' stroke=\\'%239CA3AF\\'><path stroke-linecap=\\'round\\' stroke-linejoin=\\'round\\' stroke-width=\\'2\\' d=\\'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z\\'/></svg>';">
+                            </div>
+                            <div class="ml-4 max-w-[150px]">
+                                <div class="text-sm font-medium text-gray-900 truncate" title="${item.File_Name}">${item.File_Name}</div>
+                                <div class="text-xs text-gray-500">${dateStr} ${timeStr}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                            ${item.Project_ID}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4">
+                        <div class="text-sm text-gray-900 line-clamp-2" title="${item.Catatan_Edit || '-'}">${item.Catatan_Edit || '<span class="text-gray-400 italic">Tidak ada catatan</span>'}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="flex items-center gap-2">
+                            <!-- Dropdown Update Status -->
+                            <select onchange="updateStatus('${item.ID_Pilihan}', this.value)" class="text-sm border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 ${statusClass} font-semibold py-1 px-2 border-0 cursor-pointer">
+                                <option value="Pending" ${item.Status_Edit === 'Pending' ? 'selected' : ''}>Pending</option>
+                                <option value="In Progress" ${item.Status_Edit === 'In Progress' ? 'selected' : ''}>In Progress</option>
+                                <option value="Done" ${item.Status_Edit === 'Done' ? 'selected' : ''}>Done</option>
+                            </select>
+                            <div id="loader_${item.ID_Pilihan}" class="loader hidden" style="width:14px; height:14px; border-width:2px;"></div>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div class="flex justify-end gap-3 items-center">
+                            <a href="https://drive.google.com/file/d/${item.Drive_File_ID}/view" target="_blank" class="text-blue-600 hover:text-blue-900 flex items-center gap-1" title="Lihat di Drive">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                            </a>
+                            <a href="https://drive.google.com/uc?export=download&id=${item.Drive_File_ID}" target="_blank" class="text-green-600 hover:text-green-900 flex items-center gap-1" title="Download File">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                            </a>
+                            <button onclick="openCrudModal('${item.ID_Pilihan}')" class="text-yellow-600 hover:text-yellow-900 flex items-center gap-1 ml-1" title="Edit Data">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                            </button>
+                            <button onclick="deleteData('${item.ID_Pilihan}')" class="text-red-600 hover:text-red-900 flex items-center gap-1" title="Hapus Data">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                `;
+            }).join('');
+        }
+
+        // Update metrik di atas tabel
+        function updateMetrics() {
+            let pending = 0, inProgress = 0, done = 0;
+
+            allData.forEach(item => {
+                if (item.Status_Edit === 'Pending') pending++;
+                else if (item.Status_Edit === 'In Progress') inProgress++;
+                else if (item.Status_Edit === 'Done') done++;
+            });
+
+            document.getElementById('metricTotal').innerText = allData.length;
+            document.getElementById('metricPending').innerText = pending;
+            document.getElementById('metricProgress').innerText = inProgress;
+            document.getElementById('metricDone').innerText = done;
+        }
+
+        // Update status ke backend via POST
+        async function updateStatus(rowId, newStatus) {
+            const loader = document.getElementById(`loader_${rowId}`);
+            loader.classList.remove('hidden');
+
+            const payload = {
+                action: 'updateStatus',
+                rowId: rowId,
+                newStatus: newStatus
+            };
+
+            try {
+                const response = await fetch(CONFIG.APPS_SCRIPT_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    // Update lokal array tanpa perlu fetch ulang semua agar cepat
+                    const index = allData.findIndex(item => item.ID_Pilihan === rowId);
+                    if (index !== -1) {
+                        allData[index].Status_Edit = newStatus;
+                        updateMetrics();
+                        renderTable(); // Re-render table to apply new color classes
+                    }
+                } else {
+                    throw new Error(result.message);
+                }
+            } catch (error) {
+                console.error('Update status error:', error);
+                alert('Gagal memperbarui status: ' + error.message);
+                // Kembalikan dropdown ke nilai sebelumnya (harus render ulang dari allData)
+                renderTable();
+            } finally {
+                loader.classList.add('hidden');
+            }
+        }
+
+        // Fungsi Tambah / Edit Modal
+        function openCrudModal(rowId = null) {
+            const modal = document.getElementById('crudModal');
+            const title = document.getElementById('crudModalTitle');
+
+            document.getElementById('crudRowId').value = '';
+            document.getElementById('crudProjectId').value = '';
+            document.getElementById('crudFileName').value = '';
+            document.getElementById('crudFileId').value = '';
+            document.getElementById('crudNote').value = '';
+            document.getElementById('crudStatus').value = 'Pending';
+
+            if (rowId) {
+                title.innerText = 'Edit Data';
+                const data = allData.find(item => item.ID_Pilihan === rowId);
+                if (data) {
+                    document.getElementById('crudRowId').value = rowId;
+                    document.getElementById('crudProjectId').value = data.Project_ID;
+                    document.getElementById('crudFileName').value = data.File_Name;
+                    document.getElementById('crudFileId').value = data.Drive_File_ID;
+                    document.getElementById('crudNote').value = data.Catatan_Edit;
+                    document.getElementById('crudStatus').value = data.Status_Edit;
+                }
+            } else {
+                title.innerText = 'Tambah Data Baru';
+            }
+
+            modal.classList.remove('hidden');
+        }
+
+        function closeCrudModal() {
+            document.getElementById('crudModal').classList.add('hidden');
+        }
+
+        async function submitCrudForm() {
+            const rowId = document.getElementById('crudRowId').value;
+            const projectId = document.getElementById('crudProjectId').value.trim();
+            const fileName = document.getElementById('crudFileName').value.trim();
+            const fileId = document.getElementById('crudFileId').value.trim();
+            const note = document.getElementById('crudNote').value.trim();
+            const status = document.getElementById('crudStatus').value;
+
+            if (!projectId || !fileName || !fileId) {
+                alert('Project ID, Nama File, dan File ID tidak boleh kosong!');
+                return;
+            }
+
+            const payload = {
+                action: rowId ? 'updateData' : 'createData',
+                rowId: rowId,
+                projectId: projectId,
+                fileName: fileName,
+                fileId: fileId,
+                note: note,
+                status: status
+            };
+
+            const btn = document.getElementById('crudSubmitBtn');
+            const loader = document.getElementById('crudLoader');
+            btn.disabled = true;
+            loader.classList.remove('hidden');
+
+            try {
+                const response = await fetch(CONFIG.APPS_SCRIPT_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    showMsg(result.message, 'success');
+                    closeCrudModal();
+                    fetchData(); // Reload all data
+                } else {
+                    throw new Error(result.message);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                loader.classList.add('hidden');
+            }
+        }
+
+        async function deleteData(rowId) {
+            if (!confirm('Apakah Anda yakin ingin menghapus data ini? Aksi ini tidak dapat dibatalkan.')) return;
+
+            showMsg('Menghapus data...', 'hide');
+
+            const payload = {
+                action: 'deleteSelection',
+                rowId: rowId
+            };
+
+            try {
+                const response = await fetch(CONFIG.APPS_SCRIPT_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    showMsg('Data berhasil dihapus.', 'success');
+                    fetchData(); // Reload data
+                } else {
+                    throw new Error(result.message);
+                }
+            } catch (error) {
+                alert('Gagal menghapus data: ' + error.message);
+            }
+        }
+
+        // ------------------
+        // TAB PROJECTS LOGIC
+        // ------------------
+        async function fetchProjects() {
+            const tbody = document.getElementById('tableProjectsBody');
+            const loader = document.getElementById('tableProjectsLoader');
+            const empty = document.getElementById('emptyProjectsState');
+
+            tbody.innerHTML = '';
+            empty.classList.add('hidden');
+            loader.classList.remove('hidden');
+
+            try {
+                const response = await fetch(`${CONFIG.APPS_SCRIPT_URL}?action=getProjects`);
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    allProjects = result.data.sort((a, b) => new Date(b.Timestamp) - new Date(a.Timestamp));
+                    renderProjectsTable();
+                } else {
+                    throw new Error(result.message || 'Error fetching projects');
+                }
+            } catch (error) {
+                console.error(error);
+                showMsg('Gagal memuat data projects: ' + error.message, 'error');
+            } finally {
+                loader.classList.add('hidden');
+            }
+        }
+
+        function renderProjectsTable() {
+            const tbody = document.getElementById('tableProjectsBody');
+            const empty = document.getElementById('emptyProjectsState');
+
+            if (allProjects.length === 0) {
+                tbody.innerHTML = '';
+                empty.classList.remove('hidden');
+                return;
+            }
+
+            empty.classList.add('hidden');
+
+            tbody.innerHTML = allProjects.map(item => {
+                // Get current URL without query params
+                const baseUrl = window.location.href.split('?')[0].replace('admin.html', 'index.html');
+                const clientLink = `${baseUrl}?session=${item.Project_ID}`;
+
+                return `
+                <tr class="hover:bg-gray-50 transition">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${item.Project_ID}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.Client_Name}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.Drive_Folder_ID}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div class="flex justify-end gap-3 items-center">
+                            <button onclick="copyToClipboard('${clientLink}')" class="text-blue-600 hover:text-blue-900 flex items-center gap-1" title="Copy Link untuk Klien">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                                Copy Link
+                            </button>
+                            <button onclick="deleteProject('${item.Project_ID}')" class="text-red-600 hover:text-red-900 flex items-center gap-1 ml-2" title="Hapus Project">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                `;
+            }).join('');
+        }
+
+        function openProjectModal() {
+            document.getElementById('projId').value = '';
+            document.getElementById('projClient').value = '';
+            document.getElementById('projFolderId').value = '';
+            document.getElementById('projectModal').classList.remove('hidden');
+        }
+
+        function closeProjectModal() {
+            document.getElementById('projectModal').classList.add('hidden');
+        }
+
+        async function submitProjectForm() {
+            const projectId = document.getElementById('projId').value.trim();
+            const clientName = document.getElementById('projClient').value.trim();
+            let folderIdInput = document.getElementById('projFolderId').value.trim();
+
+            if (!projectId || !clientName || !folderIdInput) {
+                alert('Semua field wajib diisi!');
+                return;
+            }
+
+            // Ekstrak ID dari Full URL Google Drive
+            let folderId = folderIdInput;
+            const match = folderIdInput.match(/folders\/([a-zA-Z0-9_-]+)/) || folderIdInput.match(/id=([a-zA-Z0-9_-]+)/);
+            if (match && match[1]) {
+                folderId = match[1];
+            } else if (folderIdInput.includes('drive.google.com/')) {
+                // Mencoba mem-parsing jika URL tidak cocok dengan regex di atas
+                const parts = folderIdInput.split('/');
+                const lastPart = parts[parts.length - 1].split('?')[0];
+                folderId = lastPart;
+            }
+
+            const payload = {
+                action: 'createProject',
+                projectId: projectId,
+                clientName: clientName,
+                folderId: folderId
+            };
+
+            const btn = document.getElementById('projSubmitBtn');
+            const loader = document.getElementById('projLoader');
+            btn.disabled = true;
+            loader.classList.remove('hidden');
+
+            try {
+                const response = await fetch(CONFIG.APPS_SCRIPT_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    showMsg(result.message, 'success');
+                    closeProjectModal();
+                    fetchProjects();
+                } else {
+                    throw new Error(result.message);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                loader.classList.add('hidden');
+            }
+        }
+
+        async function deleteProject(projectId) {
+            if (!confirm(`Apakah Anda yakin ingin menghapus Project ID ${projectId}?`)) return;
+
+            showMsg('Menghapus project...', 'hide');
+            const payload = {
+                action: 'deleteProject',
+                projectId: projectId
+            };
+
+            try {
+                const response = await fetch(CONFIG.APPS_SCRIPT_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    showMsg('Project berhasil dihapus.', 'success');
+                    fetchProjects();
+                } else {
+                    throw new Error(result.message);
+                }
+            } catch (error) {
+                alert('Gagal menghapus project: ' + error.message);
+            }
+        }
+
+        // Helpers
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                alert('Link disalin: ' + text);
+            }).catch(err => {
+                console.error('Gagal menyalin:', err);
+                prompt("Copy link di bawah secara manual:", text);
+            });
+        }
+
+        function showMsg(msg, type) {
+            const div = document.getElementById('dashboardMessage');
+            if (type === 'hide') {
+                div.classList.add('hidden');
+                return;
+            }
+            div.textContent = msg;
+            div.className = `mb-4 p-4 rounded-md text-center ${type === 'error' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'}`;
+            div.classList.remove('hidden');
+        }
+    </script>
+</body>
+
+</html>
