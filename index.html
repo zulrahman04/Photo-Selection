@@ -270,7 +270,17 @@
 
         function downloadPhoto(fileId, event) {
             event.preventDefault(); // Mencegah checkbox terklik
-            window.open(`https://drive.google.com/uc?export=download&id=${fileId}`, '_blank');
+            
+            // Menggunakan iframe tersembunyi agar tidak memicu aplikasi Google Drive terbuka di HP
+            const iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            iframe.src = `https://drive.google.com/uc?export=download&id=${fileId}`;
+            document.body.appendChild(iframe);
+            
+            // Hapus iframe setelah beberapa saat agar DOM tetap bersih
+            setTimeout(() => {
+                document.body.removeChild(iframe);
+            }, 3000);
         }
 
         // Menampilkan pesan status (sukses/error)
