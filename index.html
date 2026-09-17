@@ -183,10 +183,17 @@
                         
                         <div class="relative h-48 w-full bg-gray-100 overflow-hidden">
                             <img src="${thumbUrl}" alt="${photo.name}" class="w-full h-full object-cover" loading="lazy">
-                            <!-- Tombol Preview -->
-                            <button type="button" onclick="openModal('${photo.id}', event)" class="absolute bottom-2 right-2 bg-black bg-opacity-60 hover:bg-opacity-80 text-white p-2 rounded-full z-20 transition">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"></path></svg>
-                            </button>
+                            <!-- Action Buttons -->
+                            <div class="absolute bottom-2 right-2 flex gap-2 z-20">
+                                <!-- Tombol Download -->
+                                <button type="button" onclick="downloadPhoto('${photo.id}', event)" class="bg-black bg-opacity-60 hover:bg-opacity-80 text-white p-2 rounded-full transition" title="Download">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                                </button>
+                                <!-- Tombol Preview -->
+                                <button type="button" onclick="openModal('${photo.id}', event)" class="bg-black bg-opacity-60 hover:bg-opacity-80 text-white p-2 rounded-full transition" title="Preview">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"></path></svg>
+                                </button>
+                            </div>
                         </div>
                     </label>
                     <div class="p-4">
@@ -259,6 +266,11 @@
         function closeModal() {
             document.getElementById('imageModal').classList.add('hidden');
             document.getElementById('modalImage').src = '';
+        }
+
+        function downloadPhoto(fileId, event) {
+            event.preventDefault(); // Mencegah checkbox terklik
+            window.open(`https://drive.google.com/uc?export=download&id=${fileId}`, '_blank');
         }
 
         // Menampilkan pesan status (sukses/error)
