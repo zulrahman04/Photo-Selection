@@ -111,14 +111,16 @@
         </div>
     </main>
 
-    <!-- Modal Preview Gambar -->
+    <!-- Modal Preview Gambar / Video -->
     <div id="imageModal" class="fixed inset-0 z-50 hidden bg-black bg-opacity-90 flex items-center justify-center p-4">
-        <button onclick="closeModal()" class="absolute top-4 right-4 text-white hover:text-gray-300">
+        <button onclick="closeModal()" class="absolute top-4 right-4 text-white hover:text-gray-300 z-50">
             <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
             </svg>
         </button>
-        <img id="modalImage" src="" alt="Preview" class="max-h-full max-w-full object-contain rounded">
+        <div id="modalContentContainer" class="max-h-full max-w-full w-full flex items-center justify-center">
+            <!-- Isi modal (img atau iframe) akan dirender di sini via JS -->
+        </div>
     </div>
 
     <script>
@@ -139,10 +141,13 @@
             loader.classList.remove('hidden');
 
             try {
+                const urlParams = new URLSearchParams(window.location.search);
+                const projectId = urlParams.get('session') || document.getElementById('projectId').value.trim();
+
                 const response = await fetch(CONFIG.APPS_SCRIPT_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify({ action: 'getPhotos', folderId: CONFIG.FOLDER_ID })
+                    body: JSON.stringify({ action: 'getPhotos', folderId: CONFIG.FOLDER_ID, projectId: projectId })
                 });
 
                 const result = await response.json();
@@ -172,19 +177,42 @@
         function renderGallery() {
             const grid = document.getElementById('galleryGrid');
             grid.innerHTML = photos.map(photo => {
-                // Gunakan thumbnailLink yang dikembalikan dari API
                 const thumbUrl = photo.thumbnailLink;
+                const isVideo = photo.mimeType && photo.mimeType.startsWith('video/');
+                
+                // Badge Status
+                let badgeHtml = '';
+                let isSubmitted = false;
+                if (photo.status) {
+                    isSubmitted = true;
+                    let badgeColor = 'bg-yellow-500';
+                    if (photo.status === 'In Progress') badgeColor = 'bg-purple-500';
+                    if (photo.status === 'Done') badgeColor = 'bg-green-500';
+                    badgeHtml = `<div class="absolute top-2 right-2 px-3 py-1 ${badgeColor} text-white text-xs font-bold rounded-full z-30 shadow-md">${photo.status}</div>`;
+                }
+
+                const playIconHtml = isVideo ? `<div class="absolute inset-0 flex items-center justify-center z-10 pointer-events-none"><svg class="w-16 h-16 text-white opacity-80" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"></path></svg></div>` : '';
+
+                // Input Checkbox state (disabled jika sudah disubmit)
+                const disabledAttr = isSubmitted ? 'disabled checked' : '';
+                
+                // Jika disubmit, tidak perlu indicator hover (tapi biarkan checked)
+                const indClass = isSubmitted ? 'opacity-100 bg-blue-500 border-blue-500' : 'opacity-0 bg-white border-gray-300';
+                const checkIconClass = isSubmitted ? '' : 'hidden';
 
                 return `
                 <div class="relative group bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition">
-                    <label class="cursor-pointer block relative">
-                        <input type="checkbox" class="photo-checkbox hidden" id="chk_${photo.id}" onchange="toggleSelection('${photo.id}', '${photo.name.replace(/'/g, "\\'")}')">
-                        <div class="absolute inset-0 border-4 border-transparent transition-colors z-10 pointer-events-none rounded-t-xl"></div>
+                    ${badgeHtml}
+                    <label class="cursor-pointer block relative ${isSubmitted ? 'pointer-events-none' : ''}">
+                        <input type="checkbox" class="photo-checkbox hidden" id="chk_${photo.id}" onchange="toggleSelection('${photo.id}', '${photo.name.replace(/'/g, "\\'")}')" ${disabledAttr}>
+                        <div class="absolute inset-0 border-4 border-transparent transition-colors z-10 pointer-events-none rounded-t-xl ${isSubmitted ? 'border-blue-500 bg-blue-500 bg-opacity-10' : ''}"></div>
                         
                         <div class="relative h-48 w-full bg-gray-100 overflow-hidden">
                             <img src="${thumbUrl}" alt="${photo.name}" class="w-full h-full object-cover" loading="lazy">
+                            ${playIconHtml}
+                            
                             <!-- Action Buttons -->
-                            <div class="absolute bottom-2 right-2 flex gap-2 z-20">
+                            <div class="absolute bottom-2 right-2 flex gap-2 z-20 pointer-events-auto">
                                 <!-- Tombol Download -->
                                 <button type="button" onclick="downloadPhoto('${photo.id}', event)" class="bg-black bg-opacity-60 hover:bg-opacity-80 text-white p-2 rounded-full transition" title="Download">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
@@ -198,13 +226,13 @@
                     </label>
                     <div class="p-4">
                         <p class="text-sm font-medium text-gray-900 truncate mb-2" title="${photo.name}">${photo.name}</p>
-                        <input type="text" id="note_${photo.id}" placeholder="Catatan edit (opsional)..." 
-                            class="w-full text-sm border-b border-gray-300 focus:border-blue-500 focus:outline-none py-1 bg-transparent transition"
-                            onchange="updateNote('${photo.id}', this.value)">
+                        <input type="text" id="note_${photo.id}" placeholder="${isSubmitted ? 'Tidak ada catatan' : 'Catatan edit (opsional)...'}" 
+                            class="w-full text-sm border-b border-gray-300 focus:border-blue-500 focus:outline-none py-1 bg-transparent transition ${isSubmitted ? 'text-gray-500 cursor-not-allowed' : ''}"
+                            onchange="updateNote('${photo.id}', this.value)" value="${photo.note || ''}" ${isSubmitted ? 'readonly' : ''}>
                     </div>
                     <!-- Indikator Check -->
-                    <div id="ind_${photo.id}" class="absolute top-2 left-2 w-6 h-6 bg-white border-2 border-gray-300 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition shadow-sm check-indicator pointer-events-none z-20">
-                        <svg class="w-4 h-4 text-white hidden" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+                    <div id="ind_${photo.id}" class="absolute top-2 left-2 w-6 h-6 border-2 rounded-full flex items-center justify-center group-hover:opacity-100 transition shadow-sm check-indicator pointer-events-none z-20 ${indClass}">
+                        <svg class="w-4 h-4 text-white ${checkIconClass}" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
                     </div>
                 </div>
                 `;
@@ -256,16 +284,23 @@
             event.preventDefault(); // Mencegah checkbox terklik
             const photo = photos.find(p => p.id === fileId);
             if (photo) {
-                // Gunakan resolusi asli
-                const fullResUrl = photo.thumbnailLink;
-                document.getElementById('modalImage').src = fullResUrl;
+                const isVideo = photo.mimeType && photo.mimeType.startsWith('video/');
+                const container = document.getElementById('modalContentContainer');
+                
+                if (isVideo) {
+                    container.innerHTML = `<iframe src="https://drive.google.com/file/d/${photo.id}/preview" class="w-full h-[80vh] md:w-[80vw] border-0 rounded-lg shadow-xl" allow="autoplay"></iframe>`;
+                } else {
+                    const fullResUrl = photo.thumbnailLink;
+                    container.innerHTML = `<img src="${fullResUrl}" alt="Preview" class="max-h-full max-w-full object-contain rounded">`;
+                }
+                
                 document.getElementById('imageModal').classList.remove('hidden');
             }
         }
 
         function closeModal() {
             document.getElementById('imageModal').classList.add('hidden');
-            document.getElementById('modalImage').src = '';
+            document.getElementById('modalContentContainer').innerHTML = '';
         }
 
         function downloadPhoto(fileId, event) {
