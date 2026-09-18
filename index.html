@@ -57,11 +57,11 @@
             <p id="setupError" class="text-red-500 text-sm text-center mt-4 hidden"></p>
         </div>
     </div>
-    <!-- UBAH KONFIGURASI DI BAWAH INI -->
+    <!-- KONFIGURASI -->
     <script>
         const CONFIG = {
             FOLDER_ID: '', // Akan diisi otomatis
-            APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbwIFVOSbcYkWrNUVM_K6tX165nm3bZe41uDQZ7l5g6-pMit6KyPMo72cueNLh5Ij7E5lQ/exec'
+            APPS_SCRIPT_URL: '' // Akan diisi dari URL parameter
         };
     </script>
 
@@ -314,8 +314,8 @@
                 return;
             }
 
-            if (CONFIG.APPS_SCRIPT_URL.includes('ISI_DENGAN')) {
-                alert('URL Apps Script belum dikonfigurasi!');
+            if (!CONFIG.APPS_SCRIPT_URL) {
+                alert('URL Apps Script tidak ditemukan di tautan Anda!');
                 return;
             }
 
@@ -381,7 +381,8 @@
                 alert('Harap isi Project ID');
                 return;
             }
-            window.location.href = `?session=${encodeURIComponent(session)}`;
+            const currentApi = encodeURIComponent(CONFIG.APPS_SCRIPT_URL);
+            window.location.href = `?session=${encodeURIComponent(session)}&api=${currentApi}`;
         }
 
         // Fungsi baru untuk mengambil konfigurasi project dari backend
@@ -427,12 +428,24 @@
 
         // Init
         document.addEventListener('DOMContentLoaded', () => {
-            if (CONFIG.APPS_SCRIPT_URL.includes('ISI_DENGAN')) {
-                console.warn('URL Apps Script belum dikonfigurasi di file HTML!');
+            const urlParams = new URLSearchParams(window.location.search);
+            const apiParam = urlParams.get('api');
+            const sessionParam = urlParams.get('session');
+
+            if (apiParam) {
+                CONFIG.APPS_SCRIPT_URL = apiParam;
             }
 
-            const urlParams = new URLSearchParams(window.location.search);
-            const sessionParam = urlParams.get('session');
+            // Jika API URL tidak ada, kita tidak bisa melakukan apa-apa.
+            if (!CONFIG.APPS_SCRIPT_URL) {
+                document.getElementById('setupModal').classList.remove('hidden');
+                document.getElementById('setupSession').classList.add('hidden');
+                document.querySelector('label[for="setupSession"]').classList.add('hidden');
+                document.getElementById('startSessionBtn').classList.add('hidden');
+                document.getElementById('setupError').innerText = "Tautan tidak lengkap. Silakan gunakan link yang diberikan oleh fotografer Anda.";
+                document.getElementById('setupError').classList.remove('hidden');
+                return;
+            }
 
             if (sessionParam) {
                 // Ada parameter session di URL, kita tanya backend

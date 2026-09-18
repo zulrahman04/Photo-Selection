@@ -34,23 +34,22 @@
     <!-- UBAH KONFIGURASI DI BAWAH INI -->
     <script>
         const CONFIG = {
-            APPS_SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbwIFVOSbcYkWrNUVM_K6tX165nm3bZe41uDQZ7l5g6-pMit6KyPMo72cueNLh5Ij7E5lQ/exec',
-            ADMIN_PIN: '030400' // Ganti PIN admin di sini
+            APPS_SCRIPT_URL: '' // Akan diisi dari localStorage
         };
     </script>
 
     <!-- Overlay Login -->
     <div id="loginOverlay" class="fixed inset-0 bg-gray-900 bg-opacity-95 z-50 flex items-center justify-center">
         <div class="bg-white p-8 rounded-xl shadow-2xl max-w-sm w-full mx-4">
-            <h2 class="text-2xl font-bold text-center mb-6 text-gray-800">Admin Login</h2>
+            <h2 class="text-2xl font-bold text-center mb-6 text-gray-800">Editor Login</h2>
             <div class="mb-4">
-                <label class="block text-gray-700 text-sm font-bold mb-2" for="pin">Masukkan PIN</label>
-                <input type="password" id="pin"
+                <label class="block text-gray-700 text-sm font-bold mb-2" for="apiUrlInput">URL Apps Script Anda</label>
+                <input type="text" id="apiUrlInput"
                     class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="***" onkeypress="if(event.key === 'Enter') checkPin()">
+                    placeholder="https://script.google.com/.../exec" onkeypress="if(event.key === 'Enter') loginEditor()">
             </div>
-            <p id="loginError" class="text-red-500 text-sm italic mb-4 hidden">PIN Salah!</p>
-            <button onclick="checkPin()"
+            <p id="loginError" class="text-red-500 text-sm italic mb-4 hidden">URL tidak valid!</p>
+            <button onclick="loginEditor()"
                 class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline transition">Masuk</button>
         </div>
     </div>
@@ -63,6 +62,10 @@
             <div class="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8 flex justify-between items-center">
                 <h1 class="text-2xl font-bold text-gray-900">Dashboard Editor</h1>
                 <div class="flex items-center gap-3">
+                    <button onclick="logoutEditor()"
+                        class="flex items-center gap-2 bg-red-100 hover:bg-red-200 text-red-700 px-4 py-2 rounded-md transition font-medium text-sm">
+                        Logout
+                    </button>
                     <button onclick="openCrudModal()"
                         class="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md transition">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -352,18 +355,37 @@
         let allProjects = [];
         let currentTab = 'selections';
 
-        // Fungsi Login Sederhana
-        function checkPin() {
-            const pinInput = document.getElementById('pin').value;
-            if (pinInput === CONFIG.ADMIN_PIN) {
+        // Fungsi Login & Sesi
+        function checkLogin() {
+            const storedUrl = localStorage.getItem('MY_APPS_SCRIPT_URL');
+            if (storedUrl) {
+                CONFIG.APPS_SCRIPT_URL = storedUrl;
                 document.getElementById('loginOverlay').classList.add('hidden');
                 document.getElementById('dashboardApp').classList.remove('hidden');
                 fetchData();
                 fetchProjects();
+            }
+        }
+
+        function loginEditor() {
+            const inputUrl = document.getElementById('apiUrlInput').value.trim();
+            if (inputUrl && inputUrl.startsWith('https://script.google.com/')) {
+                localStorage.setItem('MY_APPS_SCRIPT_URL', inputUrl);
+                document.getElementById('loginError').classList.add('hidden');
+                checkLogin();
             } else {
+                document.getElementById('loginError').innerText = "Mohon masukkan URL Apps Script yang valid.";
                 document.getElementById('loginError').classList.remove('hidden');
             }
         }
+
+        function logoutEditor() {
+            localStorage.removeItem('MY_APPS_SCRIPT_URL');
+            window.location.reload();
+        }
+
+        // Jalankan cek login saat pertama kali dimuat
+        document.addEventListener('DOMContentLoaded', checkLogin);
 
         // Fungsi Navigasi Tab
         function switchTab(tabName) {
@@ -740,7 +762,7 @@
             tbody.innerHTML = allProjects.map(item => {
                 // Get current URL without query params
                 const baseUrl = window.location.href.split('?')[0].replace('admin.html', 'index.html');
-                const clientLink = `${baseUrl}?session=${item.Project_ID}`;
+                const clientLink = `${baseUrl}?session=${item.Project_ID}&api=${encodeURIComponent(CONFIG.APPS_SCRIPT_URL)}`;
 
                 return `
                 <tr class="hover:bg-gray-50 transition">
