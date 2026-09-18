@@ -124,6 +124,44 @@
     </div>
 
     <script>
+        // Helper untuk ekstrak ID dari link Google Drive
+        function extractGoogleDriveId(input) {
+            if (!input || typeof input !== 'string') return '';
+            const trimmed = input.trim();
+            const folderMatch = trimmed.match(/\/folders\/([a-zA-Z0-9_-]+)/i);
+            if (folderMatch && folderMatch[1]) return folderMatch[1];
+            const fileMatch = trimmed.match(/\/(?:file\/)?d\/([a-zA-Z0-9_-]+)/i);
+            if (fileMatch && fileMatch[1]) return fileMatch[1];
+            const idParamMatch = trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/i);
+            if (idParamMatch && idParamMatch[1]) return idParamMatch[1];
+            const lh3Match = trimmed.match(/googleusercontent\.com\/d\/([a-zA-Z0-9_-]+)/i);
+            if (lh3Match && lh3Match[1]) return lh3Match[1];
+            if (trimmed.includes('drive.google.com') || trimmed.includes('docs.google.com')) {
+                const segments = trimmed.split(/[/?#&]/);
+                for (const seg of segments) {
+                    if (/^[a-zA-Z0-9_-]{20,}$/.test(seg)) {
+                        return seg;
+                    }
+                }
+            }
+            if (/^[a-zA-Z0-9_-]{15,}$/.test(trimmed)) {
+                return trimmed;
+            }
+            return trimmed;
+        }
+
+        function getGoogleDriveImageUrl(linkOrId, size = 'w600') {
+            const id = extractGoogleDriveId(linkOrId);
+            if (!id) return '';
+            return `https://drive.google.com/thumbnail?id=${id}&sz=${size}`;
+        }
+
+        function getGoogleDriveFallbackUrl(linkOrId) {
+            const id = extractGoogleDriveId(linkOrId);
+            if (!id) return '';
+            return `https://lh3.googleusercontent.com/d/${id}`;
+        }
+
         let photos = [];
         let selectedPhotos = new Map(); // fileId -> { fileName, note }
 
@@ -177,7 +215,15 @@
         function renderGallery() {
             const grid = document.getElementById('galleryGrid');
             grid.innerHTML = photos.map(photo => {
-                const thumbUrl = photo.thumbnailLink;
+                const cleanId = extractGoogleDriveId(photo.id);
+                photo.id = cleanId; // Pastikan menggunakan ID murni
+                
+                let thumbUrl = photo.thumbnailLink;
+                // Jika thumbnail link adalah link web drive, konversi menjadi url thumbnail
+                if (!thumbUrl || thumbUrl.includes('drive.google.com/file') || thumbUrl.includes('drive.google.com/open') || thumbUrl.includes('drive.google.com/uc')) {
+                    thumbUrl = getGoogleDriveImageUrl(cleanId, 'w600');
+                }
+                const fallbackUrl = getGoogleDriveFallbackUrl(cleanId);
                 const isVideo = photo.mimeType && photo.mimeType.startsWith('video/');
                 
                 // Badge Status
@@ -208,7 +254,7 @@
                         <div class="absolute inset-0 border-4 border-transparent transition-colors z-10 pointer-events-none rounded-t-xl ${isSubmitted ? 'border-blue-500 bg-blue-500 bg-opacity-10' : ''}"></div>
                         
                         <div class="relative h-48 w-full bg-gray-100 overflow-hidden">
-                            <img src="${thumbUrl}" alt="${photo.name}" class="w-full h-full object-cover" loading="lazy">
+                            <img src="${thumbUrl}" alt="${photo.name}" class="w-full h-full object-cover" loading="lazy" onerror="if(this.src !== '${fallbackUrl}') { this.src = '${fallbackUrl}'; }">
                             ${playIconHtml}
                             
                             <!-- Action Buttons -->
@@ -290,8 +336,14 @@
                 if (isVideo) {
                     container.innerHTML = `<iframe src="https://drive.google.com/file/d/${photo.id}/preview" class="w-full h-[80vh] md:w-[80vw] border-0 rounded-lg shadow-xl" allow="autoplay"></iframe>`;
                 } else {
-                    const fullResUrl = photo.thumbnailLink;
-                    container.innerHTML = `<img src="${fullResUrl}" alt="Preview" class="max-h-full max-w-full object-contain rounded">`;
+                    const previewUrl = getGoogleDriveImageUrl(photo.id, 'w1920');
+                    const fallbackUrl = getGoogleDriveFallbackUrl(photo.id);
+                    container.innerHTML = `
+                        <div class="relative max-h-[85vh] max-w-[90vw] flex items-center justify-center">
+                            <img src="${previewUrl}" alt="Preview" 
+                                 class="max-h-[85vh] max-w-[90vw] object-contain rounded shadow-2xl transition duration-300"
+                                 onerror="if(this.src !== '${fallbackUrl}') { this.src = '${fallbackUrl}'; }">
+                        </div>`;
                 }
                 
                 document.getElementById('imageModal').classList.remove('hidden');
@@ -411,11 +463,14 @@
         }
 
         function startSession() {
-            const session = document.getElementById('setupSession').value.trim();
+            let session = document.getElementById('setupSession').value.trim();
             if (!session) {
                 alert('Harap isi Project ID');
                 return;
             }
+            const cleanSession = extractGoogleDriveId(session);
+            if (cleanSession) session = cleanSession;
+
             const currentApi = encodeURIComponent(CONFIG.APPS_SCRIPT_URL);
             window.location.href = `?session=${encodeURIComponent(session)}&api=${currentApi}`;
         }
@@ -438,8 +493,8 @@
                 const result = await response.json();
 
                 if (result.status === 'success') {
-                    // Berhasil menemukan project
-                    CONFIG.FOLDER_ID = result.data.folderId;
+                    // Berhasil menemukan project, pastikan FOLDER ID bersih
+                    CONFIG.FOLDER_ID = extractGoogleDriveId(result.data.folderId) || result.data.folderId;
 
                     const projectIdInput = document.getElementById('projectId');
                     projectIdInput.value = result.data.clientName ? `${projectId} - ${result.data.clientName}` : projectId;
